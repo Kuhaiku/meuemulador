@@ -7,46 +7,75 @@
     <style>
         body { margin: 0; background-color: #111; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; }
         
-        /* Estilos do Menu */
-        #menu { background: #222; padding: 30px; border-radius: 8px; text-align: center; border: 1px solid #333; }
-        select { padding: 10px; font-size: 16px; margin-bottom: 20px; width: 100%; border-radius: 4px; }
+        #menu { background: #222; padding: 30px; border-radius: 8px; text-align: center; border: 1px solid #333; width: 300px; }
+        select { padding: 10px; font-size: 16px; margin-bottom: 20px; width: 100%; border-radius: 4px; background: #333; color: white; border: 1px solid #555; }
         button { padding: 10px 20px; font-size: 16px; cursor: pointer; background: #0064ff; color: white; border: none; border-radius: 4px; width: 100%; font-weight: bold; }
         button:hover { background: #0052cc; }
+        button:disabled { background: #555; cursor: not-allowed; }
 
-        /* Container do Emulador (escondido por padrão) */
         .emulator-container { width: 800px; height: 600px; max-width: 100%; display: none; }
     </style>
 </head>
 <body>
 
-    <!-- Menu de Seleção -->
     <div id="menu">
         <h2>Selecione o Jogo</h2>
         <select id="gameSelect">
-            <!-- Adicione suas ROMs aqui. O value é o caminho do arquivo -->
-            <option value="/roms/super-mario-world.smc">Super Mario World</option>
-            <option value="/roms/donkey-kong-country.smc">Donkey Kong Country</option>
-            <option value="/roms/zelda.smc">Zelda: A Link to the Past</option>
+            <option value="">Carregando jogos...</option>
         </select>
-        <button onclick="startGame()">Iniciar Emulador</button>
+        <button id="btnStart" onclick="startGame()" disabled>Iniciar Emulador</button>
     </div>
 
-    <!-- Emulador -->
     <div class="emulator-container" id="emulatorWrapper">
         <div id="game"></div>
     </div>
 
     <script>
+        // Quando a página carregar, busca a lista de ROMs
+        document.addEventListener("DOMContentLoaded", () => {
+            fetch('/roms/')
+                .then(response => response.json())
+                .then(files => {
+                    const select = document.getElementById('gameSelect');
+                    const btn = document.getElementById('btnStart');
+                    select.innerHTML = ''; // Limpa o "Carregando..."
+                    
+                    // Filtra para pegar apenas arquivos com extensão de SNES
+                    const roms = files.filter(f => f.type === 'file' && (f.name.endsWith('.smc') || f.name.endsWith('.sfc')));
+                    
+                    if(roms.length === 0) {
+                        select.innerHTML = '<option value="">Nenhuma ROM encontrada na pasta</option>';
+                        return;
+                    }
+
+                    // Adiciona cada jogo no Select
+                    roms.forEach(rom => {
+                        const option = document.createElement('option');
+                        option.value = `/roms/${rom.name}`;
+                        // Remove a extensão do arquivo para exibir no menu (ex: mario.smc -> mario)
+                        option.text = rom.name.replace(/\.[^/.]+$/, "").replace(/-/g, " "); 
+                        select.appendChild(option);
+                    });
+
+                    // Libera o botão de jogar
+                    btn.disabled = false;
+                })
+                .catch(error => {
+                    console.error("Erro ao carregar ROMs:", error);
+                    document.getElementById('gameSelect').innerHTML = '<option value="">Erro ao carregar lista</option>';
+                });
+        });
+
         function startGame() {
             const select = document.getElementById('gameSelect');
+            if(!select.value) return;
+
             const romUrl = select.value;
             const gameName = select.options[select.selectedIndex].text;
 
-            // Oculta o menu e exibe a div do emulador
             document.getElementById('menu').style.display = 'none';
             document.getElementById('emulatorWrapper').style.display = 'block';
 
-            // Configura as variáveis do EmulatorJS
             window.EJS_player = '#game';
             window.EJS_core = 'snes';
             window.EJS_gameName = gameName;
@@ -56,7 +85,6 @@
             window.EJS_gameUrl = romUrl; 
             window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
 
-            // Injeta o loader do emulador dinamicamente na página
             const script = document.createElement('script');
             script.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
             document.body.appendChild(script);
